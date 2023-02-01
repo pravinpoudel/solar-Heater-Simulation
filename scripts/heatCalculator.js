@@ -1,4 +1,5 @@
 import { Clock } from "../node_modules/three/build/three.module.js";
+
 let specificHeatCapacity = 4180;
 let intialTankTem = 20;
 let collectorOutputTemp = 22;
@@ -9,6 +10,7 @@ let tankLossCofficient = 0.25;
 let waterMass = 100;
 let equillibruim = false;
 const clock = new Clock();
+const collectorArea = 1.5;
 
 function computeHeatFlow(flowRate, specificHeatCapacity, t2, t1) {
   return flowRate * specificHeatCapacity * (t2 - t1);
@@ -16,6 +18,11 @@ function computeHeatFlow(flowRate, specificHeatCapacity, t2, t1) {
 
 function isEquillibruim() {
   return intialTankTem == collectorOutputTemp;
+}
+
+function calCollectorOutTemp() {
+  let absorbedHeat = absorbedEnergy * Area;
+  let useFulHeat = absorbedHeat - heatLost;
 }
 
 function update(delta) {
