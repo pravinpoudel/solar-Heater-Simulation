@@ -4,6 +4,13 @@
   box-sizing: border-box;
 }
 
-h2 {
+body {
+  overflow: hidden;
+  font-family: "Lato", sans-serif;
+}
+
+h2.title {
   position: absolute;
+  left: 10%;
+  top: 5%;
 }
