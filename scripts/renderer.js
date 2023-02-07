@@ -8,16 +8,12 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import Stats from "three/examples/jsm/libs/stats.module";
 import { GUI } from "dat.gui";
 import { CanvasTexture } from "three";
-import {
-  collectoUsabelHeat,
-  computeCollectorOutputTemp,
-  computeHeatFlow,
-  computeHeatLoss,
-  stratumUpdate,
-} from "./heatCalculator";
+import { stratumUpdate, heatCalculatorUpdate } from "./heatCalculator";
+import fbm from "./shader/fractal";
+
 let camera, renderer;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xffe9c0);
+scene.background = new THREE.Color(0xffffff);
 const stats = Stats();
 const gui = new GUI();
 const clock = new THREE.Clock();
@@ -26,17 +22,14 @@ let collectorPosition = new THREE.Vector3(-50, 10, 0);
 let tankPosition = new THREE.Vector3(50, 10, 0);
 let texture1, texture2;
 
-let specificHeatCapacity = 4180;
-let intialTankTem = 20;
-let ambientTemp = 20;
-let tankSurfaceArea = 10;
-let upriseRate = 0.03;
-let tankLossCofficient = 300;
-let waterMass = 100;
-let Irradiance = 354;
-let tankMaterial;
-let maxTemp = 50;
-let minTemperature = 0;
+let commonUniform = {
+  time: { value: 0 },
+};
+
+let ambientTemp = 10;
+let intialTankTem = 10;
+let tank;
+let collector;
 let colorArray = [
   new THREE.Color(0, 0, 1),
   new THREE.Color(0, 1, 1),
@@ -44,6 +37,9 @@ let colorArray = [
   new THREE.Color(1, 1, 0),
   new THREE.Color(1, 0, 0),
 ];
+const tankSize = new THREE.Vector2(30, 100);
+const collectorSize = new THREE.Vector2(20, 40);
+
 let done = false;
 
 function init() {
@@ -54,9 +50,9 @@ function init() {
     1,
     10000
   );
-  camera.position.set(0, 300, 50);
+  camera.position.set(0, 150, 100);
   camera.lookAt(0, 0, 0);
-  renderer = new THREE.WebGLRenderer();
+  renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.shadowMap.enabled = true;
   renderer.setSize(window.innerWidth, window.innerHeight);
   document.body.appendChild(renderer.domElement);
@@ -69,116 +65,110 @@ function init() {
   const size = 200;
   const divisions = 20;
 
-  const gridHelper = new THREE.GridHelper(size, divisions);
-  scene.add(gridHelper);
-  texture1 = createPipe(80, 10, "right", -10, 5, 40);
-  texture2 = createPipe(80, 10, "left", -10, 5, -40);
-  addCollector_Tank(collectorPosition, tankPosition);
+  // const gridHelper = new THREE.GridHelper(size, divisions);
+  // scene.add(gridHelper);
+  texture1 = createPipe(80, 4, "right", -10, 5, 40);
+  texture2 = createPipe(80, 4, "left", -10, 5, -40);
 }
-const beforeCompileShader = (shader) => {
-  shader.uniforms.colors = tankMaterial.userData.uniforms.colors;
-  shader.uniforms.heatRatio = tankMaterial.userData.uniforms.heatRatio;
-  shader.uniforms.heatTexture = tankMaterial.userData.uniforms.heatTexture;
-  shader.uniforms.hotTemp = tankMaterial.userData.uniforms.hotTemp;
-  shader.uniforms.coldTemp = tankMaterial.userData.uniforms.coldTemp;
-  shader.fragmentShader = `
-  uniform vec3 colors[2];
-  uniform float heatRatio;
-  uniform sampler2D heatTexture;
-  uniform float hotTemp;
-  uniform float coldTemp;
-  ${shader.fragmentShader}
-`.replace(
-    `#include <color_fragment>`,
-    `#include <color_fragment>
-    vec3 coldColor = texture(heatTexture, vec2(0.3, 0.5)).rgb;
-    vec3 hotColor = texture(heatTexture, vec2(0.9, 0.5)).rgb;
-    float colorRatio = smoothstep( heatRatio-0.5, heatRatio + 0.5, vUv.y);
-    diffuseColor.rgb = mix(coldColor, hotColor, colorRatio);
-  `
-  );
-};
 
-function addCollector_Tank(collectorPosition, tankPosition) {
-  const tankGeometry = new THREE.PlaneGeometry(50, 90);
-  tankMaterial = new THREE.MeshBasicMaterial({
+let loader = new THREE.TextureLoader();
+loader.load("./public/cool-warm-colormap.png", function (texture) {
+  tank = createTank(tankPosition, texture, tankSize, "down", 0.2);
+  collector = createTank(collectorPosition, texture, collectorSize, "up", 0.8);
+});
+
+function createTank(position, texture, size, direction, heatRatio) {
+  const tankGeometry = new THREE.PlaneGeometry(size.x, size.y);
+  const flowDirection = direction == "up" ? -1.0 : 1.0;
+  let tankMaterial = new THREE.MeshBasicMaterial({
     onBeforeCompile: (shader) => {
-      beforeCompileShader(shader);
+      shader.uniforms.colors = tankMaterial.userData.uniforms.colors;
+      shader.uniforms.heatRatio = tankMaterial.userData.uniforms.heatRatio;
+      shader.uniforms.heatTexture = tankMaterial.userData.uniforms.heatTexture;
+      shader.uniforms.hotTemp = tankMaterial.userData.uniforms.hotTemp;
+      shader.uniforms.coldTemp = tankMaterial.userData.uniforms.coldTemp;
+      shader.uniforms.time = commonUniform.time;
+      shader.uniforms.flowDirection = { value: flowDirection };
+      shader.uniforms.height = { value: 10 };
+      shader.uniforms.randShift = {
+        value: new THREE.Vector2().random().subScalar(0.5).multiplyScalar(100),
+      };
+      shader.fragmentShader = `
+      uniform vec3 colors[2];
+      uniform float heatRatio;
+      uniform sampler2D heatTexture;
+      uniform float hotTemp;
+      uniform float coldTemp;
+      uniform float time;
+      uniform float height;
+      uniform vec2 randShift;
+      uniform float flowDirection;
+      ${fbm}
+      ${shader.fragmentShader}
+    `.replace(
+        `#include <color_fragment>`,
+        `#include <color_fragment>
+        float timeFactor = time*0.1*flowDirection;
+        vec3 coldColor = texture(heatTexture, vec2(coldTemp, 0.5)).rgb;
+        vec3 hotColor = texture(heatTexture, vec2(hotTemp, 0.5)).rgb;
+        float colorRatio = smoothstep( heatRatio-0.5, heatRatio + 0.5, vUv.y);
+        vec3 tempColor = mix(hotColor, coldColor, colorRatio);
+
+        float fbmValue1 = fbm(vec3((vUv +randShift)*vec2(1.0, height)- vec2(0.0, timeFactor), timeFactor*0.25));
+        float fbmValue2 = fbm(vec3((vUv +randShift)*vec2(1.0, height)*4.0- vec2(0, 10.0*timeFactor), timeFactor*0.5));
+        fbmValue1 = max(fbmValue1, fbmValue2);
+        diffuseColor.rgb = mix(tempColor, tempColor+0.1, smoothstep(0.4, 0.6, fbmValue1));
+      `
+      );
     },
     side: THREE.DoubleSide,
   });
-
   tankMaterial.defines = { USE_UV: "" };
-  let loader = new THREE.TextureLoader();
-  loader.load("./public/cool-warm-colormap.png", function (texture) {
-    texture.needsUpdate = true;
-    texture.generateMipmaps = true;
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.x = 100;
-    texture.repeat.y = 100;
+  texture.needsUpdate = true;
+  texture.generateMipmaps = true;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  // texture.repeat.x = 100;
+  // texture.repeat.y = 100;
 
-    tankMaterial.userData = {
-      uniforms: {
-        heatRatio: { value: 0.8 },
-        colors: {
-          value: [new THREE.Color(0, 0, 1), new THREE.Color(0, 1, 1)],
-        },
-        heatTexture: {
-          type: "t",
-          value: texture,
-        },
-        hotTemp: {
-          value: 0.7,
-        },
-        coldTemp: {
-          value: 0.1,
-        },
-        heatRatio: {
-          value: 0.5,
-        },
+  tankMaterial.userData = {
+    uniforms: {
+      colors: {
+        value: [new THREE.Color(0, 0, 1), new THREE.Color(0, 1, 1)],
       },
-    };
-    // tankMaterial.userData.uniforms.needsUpdate = true;
-    let tank = new THREE.Mesh(tankGeometry, tankMaterial);
-    tank.rotation.x = Math.PI * 0.5;
-    const collectorGeometry = new THREE.PlaneGeometry(20, 50);
-    const collectorMaterial = new THREE.MeshBasicMaterial({
-      side: THREE.DoubleSide,
-    });
-    collectorMaterial.onBeforeCompile = (shader) => {
-      beforeCompileShader(shader);
-    };
-    collectorMaterial.defines = { USE_UV: "" };
-    collectorMaterial.userData = {
-      uniforms: {
-        heatRatio: { value: 0.5 },
-        heatTexture: {
-          type: "t",
-          value: texture,
-        },
-        colors: {
-          value: [new THREE.Color(1, 0, 0), new THREE.Color(1, 1, 1)],
-        },
-        hotTemp: {
-          value: 0.7,
-        },
-        coldTemp: {
-          value: 0.1,
-        },
+      heatTexture: {
+        type: "t",
+        value: texture,
       },
-    };
+      hotTemp: {
+        value: 0.8,
+      },
+      coldTemp: {
+        value: 0.1,
+      },
+      heatRatio: {
+        value: heatRatio,
+      },
+      height: { value: size.y },
+    },
+  };
 
-    collectorMaterial.needsUpdate = true;
-    let collector = new THREE.Mesh(collectorGeometry, collectorMaterial);
-    collector.rotation.x = Math.PI * 0.5;
-    scene.add(tank);
-    scene.add(collector);
+  console.log(size.y);
 
-    tank.position.copy(tankPosition);
-    collector.position.copy(collectorPosition);
-    done = true;
+  console.log(tankMaterial.userData.uniforms);
+
+  // tankMaterial.userData.uniforms.needsUpdate = true;
+  let tank = new THREE.Mesh(tankGeometry, tankMaterial);
+  tank.rotation.x = Math.PI * 0.5;
+  scene.add(tank);
+  tank.position.copy(position);
+
+  var outlineMaterial = new THREE.MeshBasicMaterial({
+    side: THREE.DoubleSide,
+    color: new THREE.Color(0x667755),
   });
+  done = true;
+  return tank;
 }
 
 function createPipe(height, radius, direction, x, y, z) {
@@ -192,8 +182,8 @@ function createPipe(height, radius, direction, x, y, z) {
   context.translate(20, 20);
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.font = "40px sans-serif";
-  context.fillText("➡", 0, 0);
+  context.font = "24px sans-serif";
+  context.fillText("‿︵‿︵", 0, 0);
 
   let texture = new CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
@@ -218,8 +208,8 @@ function createPipe(height, radius, direction, x, y, z) {
   stripeMesh.rotation.z = 0.5 * Math.PI;
   const _cylidnerGeometery = new THREE.PlaneGeometry(height, radius);
   const _cylinderMaterial = new THREE.MeshBasicMaterial({
-    color: "white",
-    opacity: 0.2,
+    color: new THREE.Color(0xd4f1f9),
+    opacity: 0.6,
     side: THREE.DoubleSide,
     depthWrite: false,
     depthTest: false,
@@ -246,38 +236,23 @@ function onWindowResize() {
   render();
 }
 
-function heatCalculatorUpdate(deltaTime) {
-  let Qu = collectoUsabelHeat(intialTankTem, ambientTemp, Irradiance);
-  let collectorOutputTemp = computeCollectorOutputTemp(Qu, intialTankTem);
-  let inputFromUpriser = computeHeatFlow(
-    upriseRate,
-    specificHeatCapacity,
-    collectorOutputTemp,
-    intialTankTem
-  );
-
-  let lossToEnv = computeHeatLoss(
-    tankSurfaceArea,
-    tankLossCofficient,
-    intialTankTem,
-    ambientTemp
-  );
-  let totalInternalEnergy = deltaTime * (inputFromUpriser - lossToEnv);
-  intialTankTem += totalInternalEnergy / (waterMass * specificHeatCapacity);
-  // console.log(intialTankTem);
-}
-
 function update() {
   let deltaTime = clock.getDelta();
-  deltaTime *= 100;
+  deltaTime *= 1000;
   if (done) {
-    heatCalculatorUpdate(deltaTime);
-    console.log(tankMaterial.userData.uniforms.heatRatio);
-    tankMaterial.userData.uniforms.heatRatio.value = stratumUpdate(deltaTime);
-    tankMaterial.userData.uniforms.hotTemp.value = 30 / 40;
-    tankMaterial.userData.uniforms.coldTemp.value = 20 / 40;
-    texture1.offset.x -= deltaTime * 0.008;
-    texture2.offset.x -= deltaTime * 0.008;
+    commonUniform.time.value = clock.getElapsedTime();
+    let [hotTemp, coldTemp, collectorOutputTemp, strataRatio] =
+      heatCalculatorUpdate(300);
+    tank.material.userData.uniforms.heatRatio.value = strataRatio;
+    tank.material.userData.uniforms.hotTemp.value = hotTemp / 50;
+    tank.material.userData.uniforms.coldTemp.value = coldTemp / 50;
+    collector.material.userData.uniforms.hotTemp.value =
+      collectorOutputTemp / 50;
+    collector.material.userData.uniforms.coldTemp.value = coldTemp / 50;
+    tank.material.needsUpdate = true;
+    // console.log(hotTemp / 60, coldTemp / 60);
+    texture1.offset.x -= 0.008;
+    texture2.offset.x -= 0.008;
     render();
     stats.update();
   }
