@@ -3,9 +3,9 @@ let ambientTemp = 20;
 let tankSurfaceArea = 10;
 let Irradiance = 1000;
 let intialTankTem = 20;
-let flowRate = 0.1;
+let flowRate = 0.3;
 const collectorArea = 1.5;
-const collectorLossFactor = 6;
+const collectorLossFactor = 4;
 const transAbsorbCofficient = 0.3;
 const tankLossCofficient = 0.5;
 let waterMass = 1000;
@@ -15,7 +15,7 @@ let previosStrataRatio = -0.2;
 let coldTemperature = ambientTemp;
 let hotTemperature = ambientTemp;
 let upriserArea = 0.3175;
-let upriserLossCoff = 0.5;
+let upriserLossCoff = 0.2;
 let collectorEfficienyFactor = 0.3;
 
 // 2*pi*radius*length == radius: 0.05 and length = 2 meters
@@ -111,6 +111,7 @@ function heatCalculatorUpdate(deltaTime) {
     coldTemperature,
     hotTemperature
   );
+  console.log(tankInput, inputFromUpriser, envLoss_Hot);
 
   let totalInternalEnergy = deltaTime * (inputFromUpriser - envLoss_Hot);
   hotTemperature +=

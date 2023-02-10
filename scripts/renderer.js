@@ -18,7 +18,7 @@ const stats = Stats();
 const gui = new GUI();
 const clock = new THREE.Clock();
 let controls;
-let collectorPosition = new THREE.Vector3(-50, 10, 0);
+let collectorPosition = new THREE.Vector3(-60, 10, 0);
 let tankPosition = new THREE.Vector3(50, 10, 0);
 let texture1,
   texture2,
@@ -26,8 +26,8 @@ let texture1,
   texture4,
   pipe_top,
   pipe_bottom,
-  pipe_bottom_up,
-  pipe_top_bottom;
+  pipe_top_left,
+  pipe_bottom_left;
 
 let commonUniform = {
   time: { value: 0 },
@@ -44,7 +44,7 @@ let colorArray = [
   new THREE.Color(1, 1, 0),
   new THREE.Color(1, 0, 0),
 ];
-const tankSize = new THREE.Vector2(30, 100);
+const tankSize = new THREE.Vector2(50, 180);
 const collectorSize = new THREE.Vector2(20, 40);
 
 let done = false;
@@ -65,7 +65,7 @@ function init() {
     1,
     10000
   );
-  camera.position.set(0, 150, 100);
+  camera.position.set(0, 380, 0);
   camera.lookAt(0, 0, 0);
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.shadowMap.enabled = true;
@@ -94,7 +94,7 @@ loader.load("./public/cool-warm-colormap.png", function (texture) {
   tank = createTank(tankPosition, texture, tankSize, "down", 0.2);
   collector = createTank(collectorPosition, texture, collectorSize, "up", 0.8);
   var path = [
-    new THREE.Vector3(7, -5, 0),
+    new THREE.Vector3(5, -5, 0),
     new THREE.Vector3(1, 0, 0),
     new THREE.Vector3(8, 0, 0),
     new THREE.Vector3(1, 5, 0),
@@ -109,26 +109,26 @@ loader.load("./public/cool-warm-colormap.png", function (texture) {
     new THREE.Vector3(8, 25, 0),
     new THREE.Vector3(1, 30, 0),
     new THREE.Vector3(8, 30, 0),
-    new THREE.Vector3(6, 35, 0),
+    new THREE.Vector3(5, 35, 0),
   ];
   var pathBase = new THREE.CatmullRomCurve3(path);
   var rod_geometry = new THREE.TubeGeometry(pathBase, 1000, 1, 4, false);
-  var rod_material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  var rod_material = new THREE.MeshBasicMaterial({ color: 0x460000 });
   var rod = new THREE.Mesh(rod_geometry, rod_material);
   rod.scale.set(1, 1, 0);
-  rod.position.z = -1;
+  rod.position.z = -2;
   rod.position.x -= 5;
   rod.position.y -= 15;
   // rod.rotation.x = Math.PI / 2;
   rod.renderOrder = 9999;
   collector.add(rod);
 
-  [texture1, pipe_bottom] = createPipe(88, 4, texture, "right", -10, 5, 40);
+  [texture1, pipe_bottom] = createPipe(94, 1, texture, "right", -20, 5, 80);
   pipe_bottom.position.y -= 2;
-  [texture2, pipe_top] = createPipe(88, 4, texture, "left", -10, 5, -40);
+  [texture2, pipe_top] = createPipe(94, 1, texture, "left", -20, 5, -85);
   pipe_top.position.y += 2;
-  [texture3, pipe_bottom_up] = createPipe(20, 4, texture, "up", -50, 5, -30);
-  [texture4, pipe_top_bottom] = createPipe(20, 4, texture, "up", -50, 5, 30);
+  [texture3, pipe_top_left] = createPipe(70, 1, texture, "up", -62, 11, -50);
+  [texture4, pipe_bottom_left] = createPipe(63, 1, texture, "up", -62, 10, 50);
 });
 
 function createTank(position, texture, size, direction, heatRatio) {
@@ -167,10 +167,11 @@ function createTank(position, texture, size, direction, heatRatio) {
         vec3 hotColor = texture(heatTexture, vec2(hotTemp, 0.5)).rgb;
         float colorRatio = smoothstep( heatRatio-0.5, heatRatio + 0.5, vUv.y);
         vec3 tempColor = mix(hotColor, coldColor, colorRatio);
-        float fbmValue1 = fbm(vec3((vUv +randShift)*vec2(1.0, height)- vec2(0.0, timeFactor), timeFactor*0.25));
-        float fbmValue2 = fbm(vec3((vUv +randShift)*vec2(1.0, height)*4.0- vec2(0, 10.0*timeFactor), timeFactor*0.5));
-        fbmValue1 = max(fbmValue1, fbmValue2);
-        diffuseColor.rgb = mix(tempColor, tempColor+0.1, smoothstep(0.4, 0.6, fbmValue1));
+        // float fbmValue1 = fbm(vec3((vUv +randShift)*vec2(1.0, height)- vec2(0.0, timeFactor), timeFactor*0.25));
+        // float fbmValue2 = fbm(vec3((vUv +randShift)*vec2(1.0, height)*4.0- vec2(0, 10.0*timeFactor), timeFactor*0.5));
+        // fbmValue1 = max(fbmValue1, fbmValue2);
+        // diffuseColor.rgb = mix(tempColor, tempColor+0.1, smoothstep(0.4, 0.6, fbmValue1));
+        diffuseColor.rgb = tempColor;
       `
       );
     },
@@ -235,7 +236,7 @@ function createPipe(height, radius, _heatTexture, direction, x, y, z) {
   context.translate(20, 20);
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.font = "24px sans-serif";
+  context.font = "36px sans-serif";
   context.fillText("->", 0, 0);
 
   let texture = new CanvasTexture(canvas);
@@ -276,7 +277,7 @@ function createPipe(height, radius, _heatTexture, direction, x, y, z) {
     uniforms: {
       temperature: {
         type: "f",
-        value: 0.2,
+        value: 0.8,
       },
       heatTexture: {
         type: "t",
@@ -327,8 +328,8 @@ function update() {
   if (done) {
     commonUniform.time.value = clock.getElapsedTime();
     let [hotTemp, coldTemp, collectorOutputTemp, strataRatio] =
-      heatCalculatorUpdate(300);
-    // console.log(collectorOutputTemp, hotTemp, coldTemp);
+      heatCalculatorUpdate(30000);
+    console.log(collectorOutputTemp, hotTemp, coldTemp);
     tank.material.userData.uniforms.heatRatio.value = strataRatio;
     tank.material.userData.uniforms.hotTemp.value = Math.min(
       1.0,
@@ -346,6 +347,12 @@ function update() {
       (coldTemp - ambientTemp) / (50 - ambientTemp),
       1
     );
+
+    pipe_bottom_left.uniforms.temperature = coldTemp;
+    pipe_bottom.uniforms.temperature = coldTemp;
+
+    pipe_top.material.uniforms.temperature = hotTemp;
+    pipe_top_left.material.uniforms.temperature = hotTemp;
 
     tank.material.needsUpdate = true;
     // console.log(hotTemp / 60, coldTemp / 60);
