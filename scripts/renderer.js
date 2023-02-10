@@ -20,7 +20,14 @@ const clock = new THREE.Clock();
 let controls;
 let collectorPosition = new THREE.Vector3(-50, 10, 0);
 let tankPosition = new THREE.Vector3(50, 10, 0);
-let texture1, texture2;
+let texture1,
+  texture2,
+  texture3,
+  texture4,
+  pipe_top,
+  pipe_bottom,
+  pipe_bottom_up,
+  pipe_top_bottom;
 
 let commonUniform = {
   time: { value: 0 },
@@ -80,18 +87,52 @@ function init() {
     new THREE.Color(0x4b5320)
   );
   scene.add(gridHelper);
-  texture1 = createPipe(80, 4, "right", -10, 5, 40);
-  texture2 = createPipe(80, 4, "left", -10, 5, -40);
 }
 
 let loader = new THREE.TextureLoader();
 loader.load("./public/cool-warm-colormap.png", function (texture) {
   tank = createTank(tankPosition, texture, tankSize, "down", 0.2);
   collector = createTank(collectorPosition, texture, collectorSize, "up", 0.8);
+  var path = [
+    new THREE.Vector3(7, -5, 0),
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(8, 0, 0),
+    new THREE.Vector3(1, 5, 0),
+    new THREE.Vector3(8, 5, 0),
+    new THREE.Vector3(1, 10, 0),
+    new THREE.Vector3(8, 10, 0),
+    new THREE.Vector3(1, 10, 0),
+    new THREE.Vector3(8, 10, 0),
+    new THREE.Vector3(1, 20, 0),
+    new THREE.Vector3(8, 20, 0),
+    new THREE.Vector3(1, 25, 0),
+    new THREE.Vector3(8, 25, 0),
+    new THREE.Vector3(1, 30, 0),
+    new THREE.Vector3(8, 30, 0),
+    new THREE.Vector3(6, 35, 0),
+  ];
+  var pathBase = new THREE.CatmullRomCurve3(path);
+  var rod_geometry = new THREE.TubeGeometry(pathBase, 1000, 1, 4, false);
+  var rod_material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  var rod = new THREE.Mesh(rod_geometry, rod_material);
+  rod.scale.set(1, 1, 0);
+  rod.position.z = -1;
+  rod.position.x -= 5;
+  rod.position.y -= 15;
+  // rod.rotation.x = Math.PI / 2;
+  rod.renderOrder = 9999;
+  collector.add(rod);
+
+  [texture1, pipe_bottom] = createPipe(88, 4, texture, "right", -10, 5, 40);
+  pipe_bottom.position.y -= 2;
+  [texture2, pipe_top] = createPipe(88, 4, texture, "left", -10, 5, -40);
+  pipe_top.position.y += 2;
+  [texture3, pipe_bottom_up] = createPipe(20, 4, texture, "up", -50, 5, -30);
+  [texture4, pipe_top_bottom] = createPipe(20, 4, texture, "up", -50, 5, 30);
 });
 
 function createTank(position, texture, size, direction, heatRatio) {
-  const tankGeometry = new THREE.PlaneGeometry(size.x, size.y);
+  const tankGeometry = new THREE.PlaneGeometry(size.x, size.y, 5);
   const flowDirection = direction == "up" ? -1.0 : 1.0;
   let tankMaterial = new THREE.MeshBasicMaterial({
     onBeforeCompile: (shader) => {
@@ -183,7 +224,7 @@ function createTank(position, texture, size, direction, heatRatio) {
   return tank;
 }
 
-function createPipe(height, radius, direction, x, y, z) {
+function createPipe(height, radius, _heatTexture, direction, x, y, z) {
   let pipeGroup = new THREE.Group();
   // flow direction
   let canvas = document.createElement("canvas");
@@ -218,19 +259,51 @@ function createPipe(height, radius, direction, x, y, z) {
 
   stripeMesh.rotation.y = 0.5 * Math.PI;
   stripeMesh.rotation.z = 0.5 * Math.PI;
-  const _cylidnerGeometery = new THREE.PlaneGeometry(height, radius);
-  const _cylinderMaterial = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(0xd4f1f9),
-    opacity: 0.6,
+
+  const geometry = new THREE.PlaneGeometry(height, 5);
+  // const _cylinderMaterial = new THREE.ShaderMaterial({
+  //   color: new THREE.Color(0x4040ff),
+  //   opacity: 0.6,
+  //   side: THREE.DoubleSide,
+  //   depthWrite: false,
+  //   depthTest: false,
+  //   transparent: true,
+  // });
+
+  console.log(_heatTexture);
+
+  const _cylinderMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      temperature: {
+        type: "f",
+        value: 0.2,
+      },
+      heatTexture: {
+        type: "t",
+        value: _heatTexture,
+      },
+    },
+    vertexShader: `
+    void main() {
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+    }
+  `,
+    fragmentShader: `
+    uniform float temperature;
+    uniform sampler2D heatTexture;
+    void main() {
+      gl_FragColor = texture(heatTexture, vec2(temperature, 0.5)).rgba;
+    }`,
     side: THREE.DoubleSide,
-    depthWrite: false,
-    depthTest: false,
-    transparent: true,
   });
 
-  const _cylinder = new THREE.Mesh(_cylidnerGeometery, _cylinderMaterial);
-  _cylinder.rotation.y = Math.PI * 0.5;
+  const _cylinder = new THREE.Mesh(geometry, _cylinderMaterial);
   _cylinder.rotation.z = Math.PI * 0.5;
+  _cylinder.rotation.y = -1 * Math.PI * 0.5;
+  if (direction == "up") {
+    _cylinder.rotation.x = Math.PI * 0.5;
+    stripeMesh.rotation.x = -Math.PI * 0.5;
+  }
   pipeGroup.add(_cylinder);
   pipeGroup.add(stripeMesh);
   let directionVector = direction == "right" ? 1 : -1;
@@ -239,7 +312,7 @@ function createPipe(height, radius, direction, x, y, z) {
   pipeGroup.position.y = y;
   pipeGroup.position.z = z;
   scene.add(pipeGroup);
-  return texture;
+  return [texture, _cylinder];
 }
 function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -255,7 +328,7 @@ function update() {
     commonUniform.time.value = clock.getElapsedTime();
     let [hotTemp, coldTemp, collectorOutputTemp, strataRatio] =
       heatCalculatorUpdate(300);
-    console.log(collectorOutputTemp, hotTemp, coldTemp);
+    // console.log(collectorOutputTemp, hotTemp, coldTemp);
     tank.material.userData.uniforms.heatRatio.value = strataRatio;
     tank.material.userData.uniforms.hotTemp.value = Math.min(
       1.0,
@@ -278,6 +351,8 @@ function update() {
     // console.log(hotTemp / 60, coldTemp / 60);
     texture1.offset.x -= 0.008;
     texture2.offset.x -= 0.008;
+    texture3.offset.x -= 0.02;
+    texture4.offset.x -= 0.02;
     render();
     stats.update();
   }
