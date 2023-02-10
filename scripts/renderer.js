@@ -42,6 +42,14 @@ const collectorSize = new THREE.Vector2(20, 40);
 
 let done = false;
 
+// const backgroundLoader = new THREE.TextureLoader();
+// backgroundLoader.load("./public/grid.jpg", function (texture) {
+//   texture.wrapS = THREE.RepeatWrapping;
+//   texture.wrapT = THREE.RepeatWrapping;
+//   texture.repeat.set(4, 4);
+//   scene.background = texture;
+// });
+
 function init() {
   scene.position.set(0, 0, 0); // it is default value but for sanity
   camera = new THREE.PerspectiveCamera(
@@ -62,11 +70,16 @@ function init() {
   window.addEventListener("resize", onWindowResize, false);
   document.body.appendChild(stats.dom);
 
-  const size = 200;
-  const divisions = 20;
+  const size = 400;
+  const divisions = 30;
 
-  // const gridHelper = new THREE.GridHelper(size, divisions);
-  // scene.add(gridHelper);
+  const gridHelper = new THREE.GridHelper(
+    size,
+    divisions,
+    new THREE.Color(0xff0000),
+    new THREE.Color(0x4b5320)
+  );
+  scene.add(gridHelper);
   texture1 = createPipe(80, 4, "right", -10, 5, 40);
   texture2 = createPipe(80, 4, "left", -10, 5, -40);
 }
@@ -113,7 +126,6 @@ function createTank(position, texture, size, direction, heatRatio) {
         vec3 hotColor = texture(heatTexture, vec2(hotTemp, 0.5)).rgb;
         float colorRatio = smoothstep( heatRatio-0.5, heatRatio + 0.5, vUv.y);
         vec3 tempColor = mix(hotColor, coldColor, colorRatio);
-
         float fbmValue1 = fbm(vec3((vUv +randShift)*vec2(1.0, height)- vec2(0.0, timeFactor), timeFactor*0.25));
         float fbmValue2 = fbm(vec3((vUv +randShift)*vec2(1.0, height)*4.0- vec2(0, 10.0*timeFactor), timeFactor*0.5));
         fbmValue1 = max(fbmValue1, fbmValue2);
@@ -183,7 +195,7 @@ function createPipe(height, radius, direction, x, y, z) {
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.font = "24px sans-serif";
-  context.fillText("‿︵‿︵", 0, 0);
+  context.fillText("->", 0, 0);
 
   let texture = new CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
@@ -243,12 +255,25 @@ function update() {
     commonUniform.time.value = clock.getElapsedTime();
     let [hotTemp, coldTemp, collectorOutputTemp, strataRatio] =
       heatCalculatorUpdate(300);
+    console.log(collectorOutputTemp, hotTemp, coldTemp);
     tank.material.userData.uniforms.heatRatio.value = strataRatio;
-    tank.material.userData.uniforms.hotTemp.value = hotTemp / 50;
-    tank.material.userData.uniforms.coldTemp.value = coldTemp / 50;
-    collector.material.userData.uniforms.hotTemp.value =
-      collectorOutputTemp / 50;
-    collector.material.userData.uniforms.coldTemp.value = coldTemp / 50;
+    tank.material.userData.uniforms.hotTemp.value = Math.min(
+      1.0,
+      (hotTemp - ambientTemp) / (50 - ambientTemp)
+    );
+    tank.material.userData.uniforms.coldTemp.value = Math.min(
+      (coldTemp - ambientTemp) / (50 - ambientTemp),
+      1
+    );
+    collector.material.userData.uniforms.hotTemp.value = Math.min(
+      (collectorOutputTemp - ambientTemp) / (50 - ambientTemp),
+      1
+    );
+    collector.material.userData.uniforms.coldTemp.value = Math.min(
+      (coldTemp - ambientTemp) / (50 - ambientTemp),
+      1
+    );
+
     tank.material.needsUpdate = true;
     // console.log(hotTemp / 60, coldTemp / 60);
     texture1.offset.x -= 0.008;

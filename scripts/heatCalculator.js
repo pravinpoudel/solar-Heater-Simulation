@@ -1,42 +1,57 @@
 let specificHeatCapacity = 4180;
 let ambientTemp = 20;
 let tankSurfaceArea = 10;
-let Irradiance = 354;
+let Irradiance = 1000;
 let intialTankTem = 20;
-let upriseRate = 0.03;
-const collectorArea = 10.5;
-const collectorLossFactor = 13.14;
+let flowRate = 0.1;
+const collectorArea = 1.5;
+const collectorLossFactor = 6;
 const transAbsorbCofficient = 0.3;
-const tankLossCofficient = 0.25;
-const Cpf = 4180;
+const tankLossCofficient = 0.5;
 let waterMass = 1000;
 let hotMass = 0.1;
 let coldMass = waterMass;
 let previosStrataRatio = -0.2;
 let coldTemperature = ambientTemp;
 let hotTemperature = ambientTemp;
+let upriserArea = 0.3175;
+let upriserLossCoff = 0.5;
+let collectorEfficienyFactor = 0.3;
 
-function collectorRemoveFactor(upriseRate, Ac, Ul) {
+// 2*pi*radius*length == radius: 0.05 and length = 2 meters
+
+function convectionLoss(ta, tfo, Au, Uu) {
+  let cofficient = (-Au * Uu) / (flowRate * specificHeatCapacity);
+  let tankInput = ta + (tfo - ta) * Math.exp(cofficient);
+  // console.log(tankInput);
+  return tankInput;
+}
+
+function collectorRemoveFactor(flowRate, Ac, Ul) {
   return (
-    ((upriseRate * Cpf) / (Ac * Ul)) *
-    (1 - Math.exp((-1 * Ac * Ul) / (upriseRate * Cpf)))
+    ((flowRate * specificHeatCapacity) / (Ac * Ul)) *
+    (1 -
+      Math.exp(
+        (-1 * Ac * Ul * collectorEfficienyFactor) /
+          (flowRate * specificHeatCapacity)
+      ))
   );
 }
 
 function computeCollectorOutputTemp(Qu, inputTemp) {
-  return inputTemp + Qu / (upriseRate * Cpf);
+  return inputTemp + Qu / (flowRate * specificHeatCapacity);
 }
 
-function computeHeatFlow(flowRate, specificHeatCapacity, t2, t1) {
-  return flowRate * specificHeatCapacity * (t2 - t1);
+function computeHeatFlow(flowRate, specificHeatCapacity, t2, t1, strataRatio) {
+  return flowRate * specificHeatCapacity * strataRatio * (t2 - t1);
 }
 
-// room, cold, hold
+// room(t3), cold(t2), hot(t1)
 function computeHeatLoss(surfaceArea, heatLossRatio, heatRatio, t3, t2, t1) {
-  return (
-    surfaceArea * heatLossRatio * (1 - heatRatio) * (t2 - t3) +
-    surfaceArea * heatLossRatio * heatRatio * (t1 - t3)
-  );
+  return [
+    surfaceArea * heatLossRatio * heatRatio * (t1 - t3),
+    surfaceArea * heatLossRatio * (1 - heatRatio) * (t2 - t3),
+  ];
 }
 
 function isEquillibruim() {
@@ -44,7 +59,7 @@ function isEquillibruim() {
 }
 
 function stratumUpdate(deltaTime) {
-  hotMass += upriseRate * deltaTime;
+  hotMass += flowRate * deltaTime;
   let addedHot = hotMass / waterMass;
   return addedHot;
 }
@@ -58,7 +73,7 @@ function collectoUsabelHeat(Ti, Ta, Ir) {
 }
 
 const heatRemovedFactor = collectorRemoveFactor(
-  upriseRate,
+  flowRate,
   collectorArea,
   collectorLossFactor
 );
@@ -67,19 +82,28 @@ function heatCalculatorUpdate(deltaTime) {
   let strataRatio = stratumUpdate(deltaTime);
   let normStrataRatio = strataRatio - Math.floor(strataRatio);
   if (previosStrataRatio > normStrataRatio) {
+    // console.log("new hot temperature is", hotTemperature);
     coldTemperature = hotTemperature;
   }
   let Qu = collectoUsabelHeat(coldTemperature, ambientTemp, Irradiance);
 
   let collectorOutputTemp = computeCollectorOutputTemp(Qu, coldTemperature);
+  let tankInput = convectionLoss(
+    ambientTemp,
+    collectorOutputTemp,
+    upriserArea,
+    upriserLossCoff
+  );
 
   let inputFromUpriser = computeHeatFlow(
-    upriseRate,
+    flowRate,
     specificHeatCapacity,
-    collectorOutputTemp,
-    hotTemperature
+    tankInput,
+    hotTemperature,
+    normStrataRatio
   );
-  let lossToEnv = computeHeatLoss(
+
+  let [envLoss_Hot, envLoss_Cold] = computeHeatLoss(
     tankSurfaceArea,
     tankLossCofficient,
     normStrataRatio,
@@ -87,8 +111,14 @@ function heatCalculatorUpdate(deltaTime) {
     coldTemperature,
     hotTemperature
   );
-  let totalInternalEnergy = deltaTime * (inputFromUpriser - lossToEnv);
-  hotTemperature += totalInternalEnergy / (waterMass * specificHeatCapacity);
+
+  let totalInternalEnergy = deltaTime * (inputFromUpriser - envLoss_Hot);
+  hotTemperature +=
+    totalInternalEnergy / (waterMass * strataRatio * specificHeatCapacity);
+  coldTemperature -=
+    (tankSurfaceArea * tankLossCofficient * (coldTemperature - ambientTemp)) /
+    (waterMass * specificHeatCapacity);
+
   previosStrataRatio = normStrataRatio;
   return [
     hotTemperature,
