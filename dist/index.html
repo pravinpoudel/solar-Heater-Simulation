@@ -13,7 +13,29 @@
     />
   </head>
   <body>
-    <h2 class="title">Solar Simulator !!</h2>
+    <h1 class="title">Solar Heater Simulator !!</h2>
+    <!-- comma in the aria label is for pause -->
+    <div class="system-info">
+      <h3> System Ouput Variable: </h3>
+      <hr>
+      <ul class="" aria-label="Simulation system output lists, with time:">
+        <li>Ambient: 20°C</li>
+        <li>Collector Output Temperature:<span id="collectorTemp"></span>°C</li>
+        <li>Hot Temperature (t1) of tank:
+        <span id="hotTemp"></span°C</li>
+        <li>Cold
+             Temperature (t1) of tank:
+             <span id="coldTemp"></span>°C
+  
+        </li>
+      </ul>
+    </div>
+    
+    <div class="info">
+      <div class="color-map">
+        <img src="./public/colorMap.png" />
+      </div>
+    </div>
     <!-- <script src="https://greggman.github.io/webgl-helpers/webgl-gl-error-check.js"></script> -->
     <script src="./bundle.js"></script>
   </body>

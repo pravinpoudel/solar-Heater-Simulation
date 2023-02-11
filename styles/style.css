@@ -9,8 +9,38 @@ body {
   font-family: "Lato", sans-serif;
 }
 
-h2.title {
+h1.title {
   position: absolute;
-  left: 10%;
+  left: 5%;
   top: 5%;
+}
+
+.info {
+  position: absolute;
+  right: 200px;
+  bottom: 100px;
+}
+
+.info img {
+  width: 300px;
+  /* height: 100px; */
+}
+
+.system-info {
+  position: absolute;
+  user-select: none;
+  left: 5%;
+  top: 20%;
+  font-weight: 700;
+  padding: 30px;
+  background-color: aliceblue;
+  line-height: 1.25;
+}
+
+.system-info li {
+  margin: 10px 0;
+}
+
+.system-info li span {
+  font-weight: 800;
 }
