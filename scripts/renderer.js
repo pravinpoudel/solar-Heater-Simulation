@@ -5,14 +5,12 @@ if (module.hot) {
 import "../styles/style.css";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import Stats from "three/examples/jsm/libs/stats.module";
 import { stratumUpdate, heatCalculatorUpdate } from "./heatCalculator";
 import { createPipe, createTank } from "./createObject";
 
 let camera, renderer;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xffffff);
-const stats = Stats();
 const clock = new THREE.Clock();
 let controls;
 let collectorPosition = new THREE.Vector3(-60, 10, 0);
@@ -68,7 +66,6 @@ function init() {
   controls.minDistance = 300.0;
   controls.maxDistance = 400.0;
   window.addEventListener("resize", onWindowResize, false);
-  // document.body.appendChild(stats.dom);
 
   let loader = new THREE.TextureLoader();
   loader.load("./public/rainbow.png", function (texture) {
@@ -114,14 +111,14 @@ function init() {
     rod.renderOrder = 9999;
     collector.add(rod);
 
-    [texture1, pipe_bottom] = createPipe(94, 1, texture, "right", -20, 5, 80);
+    [texture1, pipe_bottom] = createPipe(94, 10, texture, "right", -20, 5, 80);
     pipe_bottom.position.y -= 2;
-    [texture2, pipe_top] = createPipe(94, 1, texture, "left", -20, 5, -85);
+    [texture2, pipe_top] = createPipe(94, 10, texture, "left", -20, 5, -85);
     pipe_top.position.y += 2;
-    [texture3, pipe_top_left] = createPipe(70, 1, texture, "up", -62, 11, -50);
+    [texture3, pipe_top_left] = createPipe(70, 10, texture, "up", -62, 11, -50);
     [texture4, pipe_bottom_left] = createPipe(
       63,
-      1,
+      10,
       texture,
       "up",
       -62,
@@ -138,7 +135,9 @@ function onWindowResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   render();
 }
-
+function isEquillibrium(hot, cold) {
+  return hot.toFixed(4) == cold.toFixed(4);
+}
 function updateUniforms([hotTemp, coldTemp, collectorOutputTemp, strataRatio]) {
   tank.material.userData.uniforms.heatRatio.value = strataRatio;
   tank.material.userData.uniforms.hotTemp.value = hotTemp;
@@ -149,20 +148,21 @@ function updateUniforms([hotTemp, coldTemp, collectorOutputTemp, strataRatio]) {
   pipe_bottom.material.uniforms.temperature.value = coldTemp;
   pipe_top.material.uniforms.temperature.value = hotTemp;
   pipe_top_left.material.uniforms.temperature.value = hotTemp;
-  tank.material.needsUpdate = true;
 }
 
 function update() {
   let deltaTime = clock.getDelta();
+
   commonUniform.time.value = clock.getElapsedTime();
   let heatOutput = heatCalculatorUpdate(500);
-  updateUniforms(heatOutput);
-  texture1.offset.x -= 0.008;
-  texture2.offset.x -= 0.008;
-  texture3.offset.x -= 0.02;
-  texture4.offset.x -= 0.02;
+  if (!isEquillibrium(heatOutput[0], heatOutput[1])) {
+    updateUniforms(heatOutput);
+    texture1.offset.x -= 0.008;
+    texture2.offset.x -= 0.008;
+    texture3.offset.x -= 0.02;
+    texture4.offset.x -= 0.02;
+  }
   render();
-  stats.update();
   requestAnimationFrame(update);
 }
 

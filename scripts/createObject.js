@@ -4,16 +4,15 @@ import { scene, commonUniform } from "./renderer";
 
 function createPipe(height, radius, _heatTexture, direction, x, y, z) {
   let pipeGroup = new THREE.Group();
-  // flow direction
   let canvas = document.createElement("canvas");
-  canvas.width = 20;
-  canvas.height = 20;
+  canvas.width = 10;
+  canvas.height = 10;
   let context = canvas.getContext("2d");
   context.fillStyle = "rgba(0, 0, 0, 1)";
-  context.translate(20, 20);
+  context.translate(5, 5);
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.font = "26px sans-serif";
+  context.font = "bolder 10px sans-serif";
   context.fillText("➡︎", 0, 0);
 
   let texture = new THREE.CanvasTexture(canvas);
@@ -22,7 +21,7 @@ function createPipe(height, radius, _heatTexture, direction, x, y, z) {
   texture.repeat.x = 5;
   texture.repeat.y = 1;
 
-  const stripGeometry = new THREE.PlaneGeometry(height, radius);
+  const stripGeometry = new THREE.PlaneGeometry(height, radius, 10, 10);
   const stripMaterial = new THREE.MeshBasicMaterial({
     map: texture,
     opacity: 1,

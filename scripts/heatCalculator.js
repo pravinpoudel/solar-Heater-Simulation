@@ -1,8 +1,8 @@
 let specificHeatCapacity = 4180;
-let ambientTemp = 20;
+let ambientTemp = 20.0;
 let coldTemperature = ambientTemp;
 let hotTemperature = ambientTemp;
-const MAX_TEMP = 40;
+const MAX_TEMP = 40.0;
 let tankSurfaceArea = 10;
 let upriserArea = 0.3175;
 const collectorArea = 1.5;
@@ -81,6 +81,7 @@ function heatCalculatorUpdate(deltaTime) {
 
   let Qu = collectoUsabelHeat(coldTemperature, ambientTemp, Irradiance);
   let collectorOutputTemp = computeCollectorOutputTemp(Qu, coldTemperature);
+  collectorOutputTemp = collectorOutputTemp;
 
   //temperature after loss in the upriser which can be a pipe connecting solar collector and tank
   let tankInputTemp = convectionLoss(
