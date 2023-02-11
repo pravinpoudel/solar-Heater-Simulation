@@ -47,9 +47,6 @@ function createPipe(height, radius, _heatTexture, direction, x, y, z) {
   //   depthTest: false,
   //   transparent: true,
   // });
-
-  console.log(_heatTexture);
-
   const _cylinderMaterial = new THREE.ShaderMaterial({
     uniforms: {
       temperature: {
@@ -70,9 +67,10 @@ function createPipe(height, radius, _heatTexture, direction, x, y, z) {
       uniform float temperature;
       uniform sampler2D heatTexture;
       void main() {
-        gl_FragColor = texture(heatTexture, vec2(temperature, 0.5)).rgba;
+        gl_FragColor = vec4(texture(heatTexture, vec2(temperature, 0.5)).rgb, 0.7);
       }`,
     side: THREE.DoubleSide,
+    transparent: true,
   });
 
   const _cylinder = new THREE.Mesh(geometry, _cylinderMaterial);
@@ -94,7 +92,7 @@ function createPipe(height, radius, _heatTexture, direction, x, y, z) {
 }
 
 function createTank(position, texture, size, direction, heatRatio) {
-  const tankGeometry = new THREE.PlaneGeometry(size.x, size.y, 5);
+  const tankGeometry = new THREE.PlaneGeometry(size.x, size.y);
   const flowDirection = direction == "up" ? -1.0 : 1.0;
   let tankMaterial = new THREE.MeshBasicMaterial({
     onBeforeCompile: (shader) => {
@@ -133,7 +131,6 @@ function createTank(position, texture, size, direction, heatRatio) {
           float fbmValue2 = fbm(vec3((vUv +randShift)*vec2(1.0, height)*4.0- vec2(0, 10.0*timeFactor), timeFactor*0.5));
           fbmValue1 = max(fbmValue1, fbmValue2);
           diffuseColor.rgb = mix(tempColor, tempColor+0.1, smoothstep(0.4, 0.6, fbmValue1));
-        //   diffuseColor.rgb = tempColor;
         `
       );
     },
@@ -157,7 +154,7 @@ function createTank(position, texture, size, direction, heatRatio) {
         value: texture,
       },
       hotTemp: {
-        value: 0.8,
+        value: 0.1,
       },
       coldTemp: {
         value: 0.1,
@@ -169,20 +166,11 @@ function createTank(position, texture, size, direction, heatRatio) {
     },
   };
 
-  console.log(size.y);
-
-  console.log(tankMaterial.userData.uniforms);
-
   // tankMaterial.userData.uniforms.needsUpdate = true;
   let tank = new THREE.Mesh(tankGeometry, tankMaterial);
   tank.rotation.x = Math.PI * 0.5;
-  scene.add(tank);
   tank.position.copy(position);
-
-  var outlineMaterial = new THREE.MeshBasicMaterial({
-    side: THREE.DoubleSide,
-    color: new THREE.Color(0x667755),
-  });
+  scene.add(tank);
   return tank;
 }
 

@@ -78,7 +78,7 @@ function init() {
       texture,
       collectorSize,
       "up",
-      0.8
+      0.0
     );
     var path = [
       new THREE.Vector3(5, -5, 0),
@@ -141,8 +141,8 @@ function onWindowResize() {
 
 function updateUniforms([hotTemp, coldTemp, collectorOutputTemp, strataRatio]) {
   tank.material.userData.uniforms.heatRatio.value = strataRatio;
-  tank.material.userData.uniforms.hotTemp.value = 0.8;
-  tank.material.userData.uniforms.coldTemp.value = 0.2;
+  tank.material.userData.uniforms.hotTemp.value = hotTemp;
+  tank.material.userData.uniforms.coldTemp.value = coldTemp;
   collector.material.userData.uniforms.hotTemp.value = collectorOutputTemp;
   collector.material.userData.uniforms.coldTemp.value = coldTemp;
   pipe_bottom_left.material.uniforms.temperature.value = coldTemp;
@@ -155,7 +155,7 @@ function updateUniforms([hotTemp, coldTemp, collectorOutputTemp, strataRatio]) {
 function update() {
   let deltaTime = clock.getDelta();
   commonUniform.time.value = clock.getElapsedTime();
-  let heatOutput = heatCalculatorUpdate(300);
+  let heatOutput = heatCalculatorUpdate(500);
   updateUniforms(heatOutput);
   texture1.offset.x -= 0.008;
   texture2.offset.x -= 0.008;
